@@ -1,0 +1,148 @@
+{
+  "app_name": "SIPTracker",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A premium, clear, and highly readable investment tracker focusing on numbers and growth with a calm, tactile finish.",
+  "color": {
+    "surface": { "light": "#F9F8F6", "dark": "#121212" },
+    "onSurface": { "light": "#1A1A1A", "dark": "#F0F0F0" },
+    "surfaceSecondary": { "light": "#FFFFFF", "dark": "#1E1E1E" },
+    "onSurfaceSecondary": { "light": "#1A1A1A", "dark": "#F0F0F0" },
+    "surfaceTertiary": { "light": "#F0EFEA", "dark": "#2A2A2A" },
+    "onSurfaceTertiary": { "light": "#4A4A4A", "dark": "#B0B0B0" },
+    "surfaceInverse": { "light": "#1A1A1A", "dark": "#F0F0F0" },
+    "onSurfaceInverse": { "light": "#F9F8F6", "dark": "#121212" },
+    "brand": { "light": "#3B5945", "dark": "#4D735A" },
+    "brandPrimary": { "light": "#3B5945", "dark": "#4D735A" },
+    "onBrandPrimary": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "brandSecondary": { "light": "#5A7A66", "dark": "#6A8F78" },
+    "onBrandSecondary": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "brandTertiary": { "light": "#E8EFEA", "dark": "#233328" },
+    "onBrandTertiary": { "light": "#2E4536", "dark": "#A2C2AE" },
+    "success": { "light": "#285C4D", "dark": "#367A66" },
+    "onSuccess": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "warning": { "light": "#D97706", "dark": "#F59E0B" },
+    "onWarning": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "error": { "light": "#C94A4A", "dark": "#EF4444" },
+    "onError": { "light": "#FFFFFF", "dark": "#FFFFFF" },
+    "info": { "light": "#4A4A4A", "dark": "#9CA3AF" },
+    "onInfo": { "light": "#FFFFFF", "dark": "#121212" },
+    "border": { "light": "#E5E3DB", "dark": "#2C2C2C" },
+    "borderStrong": { "light": "#D1CEC3", "dark": "#444444" },
+    "divider": { "light": "#E5E3DB", "dark": "#2C2C2C" }
+  },
+  "typography": {
+    "displayFontFamily": "Space Grotesk",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Avoid unnecessary spacing; use tight layout for data groups. Cards never flush to screen edges.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": "1",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": "true",
+    "do's": [
+      "Use glass on Bottom Tab Bar and over scrolling content.",
+      "Use glass on sticky headers, like the Bottom Sheet handle area.",
+      "Use glass + brand tint overlay on the top Hero Card in the dashboard over the stone/graphite background."
+    ],
+    "dont's": [
+      "Do not use glass for list items or input fields.",
+      "Do not use glass on empty state backgrounds."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Dashboard",
+      "purpose": "A real-time view of capital spent, units owned, and remaining budget per stock, with a quick-action flow to log daily buys.",
+      "layout": "Top section: A full-width Hero Card (glassmorphism over `hero_bg` image) displaying the total Monthly Budget, Total Capital Spent, and overall Rollover/Remaining daily budget. The amount values should use `Space Grotesk`. Bottom section: Scrollable list of Stock Cards. Each card uses `surfaceSecondary`, displaying Stock Name, Allocation %, units owned, and Today's Daily Budget. Tapping a card opens a Bottom Sheet to enter today's stock price, which auto-calculates units to buy and commits the trade.",
+      "states": {
+        "loading": "Centered spinner over the Hero Card skeleton and list skeleton.",
+        "empty": "No stocks tracked. Illustration of the blank notebook + 'Configure your SIP settings to start tracking' + 'Go to Settings' CTA.",
+        "error": "Error loading dashboard data + Retry button."
+      }
+    },
+    {
+      "name": "History",
+      "purpose": "A chronological ledger of all past daily SIP entries.",
+      "layout": "Standard list view with a sticky header. Each list row (using `surfaceSecondary`) shows Date, Stock Initials in a `brandTertiary` circle, Price, Units, and Total Cost. Optionally, a glass-segmented control at the top to filter by stock.",
+      "states": {
+        "loading": "Skeleton list rows.",
+        "empty": "Full screen layout. Illustration of `empty_state_notebook` + 'No investments logged yet.' + CTA to 'Go to Dashboard'.",
+        "error": "Failed to load history + Retry button."
+      }
+    },
+    {
+      "name": "Settings",
+      "purpose": "Manage total budget, trading days, stock allocations, and execute independent resets.",
+      "layout": "Scrollable form layout. Use cards (`surfaceSecondary`) to group related settings. Group 1: Global Budget (Monthly Amount, Trading Days). Group 2: Stock Allocations (Dynamic list of stocks with input fields for Allocation % summing to 100%). Group 3: Danger Zone / Resets (Reset Budget, Reset Allocations, Reset Logs individually). Sticky 'Save Settings' primary CTA at the bottom inside a `KeyboardAvoidingView`.",
+      "states": {
+        "loading": "Form skeletons.",
+        "empty": "N/A",
+        "error": "Error loading settings + Retry button."
+      }
+    }
+  ],
+  "images": {
+    "hero_bg": {
+      "url": "https://images.unsplash.com/photo-1516541196182-6bdb0516ed27?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NTYxODF8MHwxfHNlYXJjaHwxfHxzdG9uZSUyMHRleHR1cmUlMjBtaW5pbWFsfGVufDB8fHx3aGl0ZXwxNzg1OTI4Mzc3fDA&ixlib=rb-4.1.0&q=85",
+      "dark": "https://images.unsplash.com/photo-1578662996442-48f60103fc96?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjAzMjd8MHwxfHNlYXJjaHwxfHxkYXJrJTIwZ3JhcGhpdGUlMjB0ZXh0dXJlJTIwbWluaW1hbHxlbnwwfHx8YmxhY2t8MTc4NTkyODM3N3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Subtle minimal texture background for hero card"
+    },
+    "empty_state_notebook": {
+      "url": "https://images.unsplash.com/photo-1554757387-fa0367573d09?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NzV8MHwxfHNlYXJjaHwxfHxibGFuayUyMG5vdGVib29rJTIwbWluaW1hbCUyMGVtcHR5fGVufDB8fHxibGFja19hbmRfd2hpdGV8MTc4NTkyODM4M3ww&ixlib=rb-4.1.0&q=85",
+      "alt": "Minimal blank notebook on desk"
+    }
+  },
+  "haptics": {
+    "events": {
+      "tab_press": "selection",
+      "button_press": "light",
+      "log_entry_success": "success",
+      "reset_warning": "warning"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Ensure `Plus Jakarta Sans` is used for text and `Space Grotesk` is strictly used for all numbers, metrics, and currency amounts across the app.",
+    "Do not use blue or purple anywhere in the UI. Follow the defined Sage Green (`brandPrimary`) and Terracotta (`error`) palette.",
+    "Implement a `KeyboardAvoidingView` on the Settings screen and the Log Entry bottom sheet to prevent layout collapsing.",
+    "For the hero card on the Dashboard, render the `hero_bg` image using `expo-image` and layer a vertical `expo-linear-gradient` scrim over it. For light mode use a transparent to 80% surfaceInverse gradient, ensuring white text (`onSurfaceInverse`) reads perfectly over the stone texture.",
+    "For stock list items, since logos are user-added text, generate an initials avatar in a `brandTertiary` circle (e.g., 'TCS', 'RELIANCE').",
+    "Keep the 'Save Settings' button on the Settings screen sticky at the bottom of the viewport using an absolute positioned container or flex-1 wrapper, ensuring users don't have to scroll to save.",
+    "For the stock entry Bottom Sheet, include an input for 'Current Price' and output 'Calculated Units' in real-time as the user types.",
+    "Max font weight is 500. Do not use 600, 700, or 'bold' styling anywhere."
+  ]
+}
