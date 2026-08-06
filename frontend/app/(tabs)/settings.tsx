@@ -277,8 +277,9 @@ export default function SettingsScreen() {
       <Modal visible={addOpen} transparent animationType="slide" onRequestClose={() => setAddOpen(false)}>
         <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1, justifyContent: "flex-end" }}>
           <Pressable style={styles.sheetOverlay} onPress={() => setAddOpen(false)}>
-            <Pressable style={[styles.sheet, { backgroundColor: c.surfaceSecondary }]} onPress={(e) => e.stopPropagation()}>
+            <Pressable style={[styles.sheet, { backgroundColor: c.surfaceSecondary, maxHeight: "90%" }]} onPress={(e) => e.stopPropagation()}>
               <View style={styles.sheetHandle} />
+              <ScrollView contentContainerStyle={{ gap: spacing.sm }} keyboardShouldPersistTaps="handled">
               <Text style={[styles.cardTitle, { color: c.onSurface }]}>Add Stock</Text>
               <TextInput
                 value={addSymbol}
@@ -321,6 +322,7 @@ export default function SettingsScreen() {
                   <Text style={styles.saveBtnText}>Add Stock</Text>
                 </Pressable>
               </View>
+              </ScrollView>
             </Pressable>
           </Pressable>
         </KeyboardAvoidingView>
