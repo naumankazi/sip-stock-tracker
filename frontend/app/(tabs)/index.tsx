@@ -149,7 +149,7 @@ export default function DashboardScreen() {
             </Text>
             <Pressable
               style={[styles.primaryBtn, { backgroundColor: c.brandPrimary }]}
-              onPress={() => router.push("/(tabs)/settings")}
+              onPress={() => router.push("/settings")}
               testID="empty-go-settings"
             >
               <Text style={styles.primaryBtnText}>Go to Settings</Text>
