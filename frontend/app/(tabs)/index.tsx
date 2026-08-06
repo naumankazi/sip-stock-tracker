@@ -35,6 +35,8 @@ export default function DashboardScreen() {
   const [error, setError] = React.useState<string | null>(null);
   const [selected, setSelected] = React.useState<DashboardStock | null>(null);
   const [priceInput, setPriceInput] = React.useState("");
+  const [unitsInput, setUnitsInput] = React.useState("");
+  const [manualUnits, setManualUnits] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
 
   const load = React.useCallback(async () => {
@@ -59,6 +61,28 @@ export default function DashboardScreen() {
   const openBuy = (s: DashboardStock) => {
     setSelected(s);
     setPriceInput("");
+    setUnitsInput("");
+    setManualUnits(false);
+  };
+
+  const onPriceChange = (v: string) => {
+    setPriceInput(v);
+    if (!manualUnits && selected) {
+      const p = parseFloat(v);
+      if (p && p > 0) {
+        const u = Math.floor(selected.remaining_today / p);
+        setUnitsInput(u > 0 ? String(u) : "");
+      } else {
+        setUnitsInput("");
+      }
+    }
+  };
+
+  const onUnitsChange = (v: string) => {
+    // Only allow digits
+    const clean = v.replace(/[^0-9]/g, "");
+    setUnitsInput(clean);
+    setManualUnits(true);
   };
 
   const submitBuy = async () => {
@@ -68,13 +92,20 @@ export default function DashboardScreen() {
       toast.show("Enter a valid price", "error");
       return;
     }
+    const units = parseInt(unitsInput, 10);
+    if (!units || units <= 0) {
+      toast.show("Enter units (must be >= 1)", "error");
+      return;
+    }
     setSubmitting(true);
     try {
-      await api.createEntry({ stock_id: selected.id, price });
+      await api.createEntry({ stock_id: selected.id, price, units });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       toast.show(`Logged buy for ${selected.symbol}`, "success");
       setSelected(null);
       setPriceInput("");
+      setUnitsInput("");
+      setManualUnits(false);
       await load();
     } catch (e: any) {
       toast.show(e.message, "error");
@@ -84,12 +115,13 @@ export default function DashboardScreen() {
   };
 
   const computed = React.useMemo(() => {
-    if (!selected) return { units: 0, cost: 0 };
     const p = parseFloat(priceInput);
-    if (!p || p <= 0) return { units: 0, cost: 0 };
-    const units = Math.floor(selected.remaining_today / p);
-    return { units, cost: Math.round(units * p * 100) / 100 };
-  }, [priceInput, selected]);
+    const u = parseInt(unitsInput, 10);
+    if (!p || p <= 0 || !u || u <= 0) return { units: u || 0, cost: 0, overBudget: false };
+    const cost = Math.round(u * p * 100) / 100;
+    const overBudget = selected ? cost > selected.remaining_today : false;
+    return { units: u, cost, overBudget };
+  }, [priceInput, unitsInput, selected]);
 
   if (loading) {
     return (
@@ -214,7 +246,7 @@ export default function DashboardScreen() {
               <Text style={[styles.inputLabel, { color: c.onSurface }]}>Current Price (₹)</Text>
               <TextInput
                 value={priceInput}
-                onChangeText={setPriceInput}
+                onChangeText={onPriceChange}
                 keyboardType="decimal-pad"
                 placeholder="e.g. 2450.50"
                 placeholderTextColor={c.mutedText}
@@ -225,19 +257,53 @@ export default function DashboardScreen() {
                 testID="buy-price-input"
               />
 
-              <View style={[styles.calcBox, { backgroundColor: c.brandTertiary }]}>
+              <View style={styles.unitsLabelRow}>
+                <Text style={[styles.inputLabel, { color: c.onSurface }]}>Units to Buy</Text>
+                {manualUnits ? (
+                  <Pressable
+                    onPress={() => {
+                      setManualUnits(false);
+                      const p = parseFloat(priceInput);
+                      if (p && p > 0 && selected) {
+                        const u = Math.floor(selected.remaining_today / p);
+                        setUnitsInput(u > 0 ? String(u) : "");
+                      } else {
+                        setUnitsInput("");
+                      }
+                    }}
+                    testID="buy-units-auto"
+                  >
+                    <Text style={[styles.autoLink, { color: c.brandPrimary }]}>Auto ({formatINR(selected?.remaining_today || 0)} max)</Text>
+                  </Pressable>
+                ) : (
+                  <Text style={[styles.autoHint, { color: c.mutedText }]}>Auto-calculated · tap to edit</Text>
+                )}
+              </View>
+              <TextInput
+                value={unitsInput}
+                onChangeText={onUnitsChange}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={c.mutedText}
+                style={[
+                  styles.input,
+                  { borderColor: c.border, color: c.onSurface, backgroundColor: c.surface },
+                ]}
+                testID="buy-units-input"
+              />
+
+              <View style={[styles.calcBox, { backgroundColor: computed.overBudget ? c.error : c.brandTertiary }]}>
                 <View style={styles.calcRow}>
-                  <Text style={[styles.calcLabel, { color: c.onBrandTertiary }]}>Units to Buy</Text>
-                  <Text style={[styles.calcValue, { color: c.onBrandTertiary }]} testID="buy-units-calc">
-                    {computed.units}
-                  </Text>
-                </View>
-                <View style={styles.calcRow}>
-                  <Text style={[styles.calcLabel, { color: c.onBrandTertiary }]}>Total Cost</Text>
-                  <Text style={[styles.calcValue, { color: c.onBrandTertiary }]} testID="buy-cost-calc">
+                  <Text style={[styles.calcLabel, { color: computed.overBudget ? "#fff" : c.onBrandTertiary }]}>Total Cost</Text>
+                  <Text style={[styles.calcValue, { color: computed.overBudget ? "#fff" : c.onBrandTertiary }]} testID="buy-cost-calc">
                     {formatINR(computed.cost)}
                   </Text>
                 </View>
+                {computed.overBudget ? (
+                  <Text style={[styles.overBudgetNote, { color: "#fff" }]} testID="buy-over-budget-warn">
+                    ⚠ Exceeds today's available budget by {formatINR(computed.cost - (selected?.remaining_today || 0))}
+                  </Text>
+                ) : null}
               </View>
 
               <View style={styles.sheetActions}>
@@ -488,6 +554,15 @@ const styles = StyleSheet.create({
   calcRow: { flexDirection: "row", justifyContent: "space-between" },
   calcLabel: { fontSize: font.sm },
   calcValue: { fontSize: font.lg, fontWeight: "500", fontVariant: ["tabular-nums"] },
+  overBudgetNote: { fontSize: font.sm, marginTop: 4 },
+  unitsLabelRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: spacing.sm,
+  },
+  autoHint: { fontSize: 11 },
+  autoLink: { fontSize: 11, fontWeight: "500" },
   sheetActions: { flexDirection: "row", gap: spacing.sm, marginTop: spacing.sm },
   ghostBtn: {
     paddingHorizontal: spacing.lg,

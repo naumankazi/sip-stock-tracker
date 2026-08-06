@@ -48,7 +48,7 @@ export const api = {
 
   getDashboard: () => fetch(`${API}/dashboard`).then(handle),
 
-  createEntry: (body: { stock_id: string; price: number; date?: string }) =>
+  createEntry: (body: { stock_id: string; price: number; units?: number; date?: string }) =>
     fetch(`${API}/entries`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -70,6 +70,7 @@ class Entry(BaseModel):
 class EntryCreate(BaseModel):
     stock_id: str
     price: float
+    units: Optional[int] = None  # if None, auto-computed as floor(remaining / price)
     date: Optional[str] = None  # defaults to today
 
 
@@ -306,9 +307,14 @@ async def create_entry(payload: EntryCreate):
     spent = sum(e.get("cost", 0) for e in existing)
     remaining = max(accrued - spent, 0.0)
 
-    units = int(remaining // payload.price)
-    if units <= 0:
-        raise HTTPException(400, "insufficient remaining budget to buy 1 whole unit at this price")
+    if payload.units is not None:
+        if payload.units <= 0:
+            raise HTTPException(400, "units must be > 0")
+        units = int(payload.units)
+    else:
+        units = int(remaining // payload.price)
+        if units <= 0:
+            raise HTTPException(400, "insufficient remaining budget to buy 1 whole unit at this price")
     cost = round(units * payload.price, 2)
 
     entry = Entry(
