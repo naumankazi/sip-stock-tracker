@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "SIP Stock Tracker",
+    "slug": "sip-stock-tracker",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "sip-stock-tracker",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
