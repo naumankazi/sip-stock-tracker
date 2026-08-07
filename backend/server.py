@@ -2,6 +2,7 @@ from fastapi import FastAPI, APIRouter, HTTPException
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 import os
 import logging
 from pathlib import Path
@@ -14,10 +15,10 @@ from datetime import datetime, date, timedelta, timezone
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
-# MongoDB connection
+# MongoDB connection with 1.5s timeout for fast fallback
 mongo_url = os.environ.get('MONGO_URL', 'mongodb://localhost:27017')
 db_name = os.environ.get('DB_NAME', 'sip_stock_tracker')
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(mongo_url, serverSelectionTimeoutMS=1500)
 db = client[db_name]
 
 # Create the main app without a prefix
@@ -79,20 +80,169 @@ class AllocationsUpdate(BaseModel):
     allocations: List[dict]  # [{ "id": stock_id, "allocation_pct": 25.0 }]
 
 
-# ---------------------- Helpers ----------------------
+# ---------------------- Hybrid DB Abstraction ----------------------
 
 SETTINGS_KEY = "singleton"
 
+# In-memory storage fallback if MongoDB is offline
+MEMORY_STORE = {
+    "settings": Settings().model_dump(),
+    "stocks": [
+        {
+            "id": "sample-1",
+            "symbol": "RELIANCE",
+            "name": "Reliance Industries",
+            "allocation_pct": 40.0,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": "sample-2",
+            "symbol": "TCS",
+            "name": "Tata Consultancy Services",
+            "allocation_pct": 60.0,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+    ],
+    "entries": []
+}
+
+use_memory_fallback = False
+
 async def get_settings_doc() -> dict:
-    doc = await db.settings.find_one({"_key": SETTINGS_KEY}, {"_id": 0})
-    if not doc:
-        s = Settings().model_dump()
-        s["_key"] = SETTINGS_KEY
-        await db.settings.insert_one(s.copy())
-        doc = {k: v for k, v in s.items() if k != "_key"}
-    else:
-        doc = {k: v for k, v in doc.items() if k != "_key"}
-    return doc
+    global use_memory_fallback
+    if not use_memory_fallback:
+        try:
+            doc = await db.settings.find_one({"_key": SETTINGS_KEY}, {"_id": 0})
+            if not doc:
+                s = Settings().model_dump()
+                s["_key"] = SETTINGS_KEY
+                await db.settings.insert_one(s.copy())
+                doc = {k: v for k, v in s.items() if k != "_key"}
+            else:
+                doc = {k: v for k, v in doc.items() if k != "_key"}
+            return doc
+        except (ServerSelectionTimeoutError, PyMongoError, Exception) as e:
+            logging.warning(f"MongoDB not available, switching to in-memory store: {e}")
+            use_memory_fallback = True
+    return MEMORY_STORE["settings"].copy()
+
+
+async def save_settings_doc(data: dict):
+    global use_memory_fallback
+    MEMORY_STORE["settings"] = data.copy()
+    if not use_memory_fallback:
+        try:
+            to_save = {**data, "_key": SETTINGS_KEY}
+            await db.settings.update_one({"_key": SETTINGS_KEY}, {"$set": to_save}, upsert=True)
+        except Exception as e:
+            use_memory_fallback = True
+
+
+async def get_all_stocks() -> List[dict]:
+    global use_memory_fallback
+    if not use_memory_fallback:
+        try:
+            rows = await db.stocks.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+            return rows
+        except Exception:
+            use_memory_fallback = True
+    return sorted(MEMORY_STORE["stocks"], key=lambda x: x.get("created_at", ""))
+
+
+async def add_stock_doc(stock_doc: dict):
+    global use_memory_fallback
+    MEMORY_STORE["stocks"].append(stock_doc.copy())
+    if not use_memory_fallback:
+        try:
+            await db.stocks.insert_one(stock_doc.copy())
+        except Exception:
+            use_memory_fallback = True
+
+
+async def update_stock_doc(stock_id: str, update_fields: dict) -> Optional[dict]:
+    global use_memory_fallback
+    updated = None
+    for s in MEMORY_STORE["stocks"]:
+        if s["id"] == stock_id:
+            s.update(update_fields)
+            updated = s.copy()
+            break
+    if not use_memory_fallback:
+        try:
+            await db.stocks.update_one({"id": stock_id}, {"$set": update_fields})
+            doc = await db.stocks.find_one({"id": stock_id}, {"_id": 0})
+            if doc:
+                return doc
+        except Exception:
+            use_memory_fallback = True
+    return updated
+
+
+async def delete_stock_doc(stock_id: str) -> bool:
+    global use_memory_fallback
+    initial_len = len(MEMORY_STORE["stocks"])
+    MEMORY_STORE["stocks"] = [s for s in MEMORY_STORE["stocks"] if s["id"] != stock_id]
+    deleted = len(MEMORY_STORE["stocks"]) < initial_len
+    if not use_memory_fallback:
+        try:
+            res = await db.stocks.delete_one({"id": stock_id})
+            return res.deleted_count > 0
+        except Exception:
+            use_memory_fallback = True
+    return deleted
+
+
+async def get_month_entries(stock_id: str, month_prefix: str) -> List[dict]:
+    global use_memory_fallback
+    if not use_memory_fallback:
+        try:
+            entries = await db.entries.find(
+                {"stock_id": stock_id, "date": {"$regex": f"^{month_prefix}-"}},
+                {"_id": 0},
+            ).to_list(10000)
+            return entries
+        except Exception:
+            use_memory_fallback = True
+    return [e for e in MEMORY_STORE["entries"] if e.get("stock_id") == stock_id and str(e.get("date", "")).startswith(month_prefix)]
+
+
+async def add_entry_doc(entry_doc: dict):
+    global use_memory_fallback
+    MEMORY_STORE["entries"].append(entry_doc.copy())
+    if not use_memory_fallback:
+        try:
+            await db.entries.insert_one(entry_doc.copy())
+        except Exception:
+            use_memory_fallback = True
+
+
+async def get_all_entries(stock_id: Optional[str] = None, limit: int = 500) -> List[dict]:
+    global use_memory_fallback
+    if not use_memory_fallback:
+        try:
+            query = {}
+            if stock_id:
+                query["stock_id"] = stock_id
+            rows = await db.entries.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+            return rows
+        except Exception:
+            use_memory_fallback = True
+    res = [e for e in MEMORY_STORE["entries"] if not stock_id or e.get("stock_id") == stock_id]
+    return sorted(res, key=lambda x: x.get("created_at", ""), reverse=True)[:limit]
+
+
+async def delete_entry_doc(entry_id: str) -> bool:
+    global use_memory_fallback
+    initial_len = len(MEMORY_STORE["entries"])
+    MEMORY_STORE["entries"] = [e for e in MEMORY_STORE["entries"] if e["id"] != entry_id]
+    deleted = len(MEMORY_STORE["entries"]) < initial_len
+    if not use_memory_fallback:
+        try:
+            res = await db.entries.delete_one({"id": entry_id})
+            return res.deleted_count > 0
+        except Exception:
+            use_memory_fallback = True
+    return deleted
 
 
 def business_days_elapsed(today: date) -> int:
@@ -128,8 +278,7 @@ async def update_settings(update: SettingsUpdate):
         if update.trading_days <= 0:
             raise HTTPException(400, "trading_days must be > 0")
         current["trading_days"] = int(update.trading_days)
-    to_save = {**current, "_key": SETTINGS_KEY}
-    await db.settings.update_one({"_key": SETTINGS_KEY}, {"$set": to_save}, upsert=True)
+    await save_settings_doc(current)
     return current
 
 
@@ -137,7 +286,7 @@ async def update_settings(update: SettingsUpdate):
 
 @api_router.get("/stocks", response_model=List[Stock])
 async def list_stocks():
-    rows = await db.stocks.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    rows = await get_all_stocks()
     return [Stock(**r) for r in rows]
 
 
@@ -153,15 +302,12 @@ async def create_stock(payload: StockCreate):
         allocation_pct=float(payload.allocation_pct),
     )
     doc = stock.model_dump()
-    await db.stocks.insert_one(doc.copy())
+    await add_stock_doc(doc)
     return stock
 
 
 @api_router.put("/stocks/{stock_id}", response_model=Stock)
 async def update_stock(stock_id: str, payload: StockUpdate):
-    existing = await db.stocks.find_one({"id": stock_id}, {"_id": 0})
-    if not existing:
-        raise HTTPException(404, "stock not found")
     update = {}
     if payload.symbol is not None:
         update["symbol"] = payload.symbol.strip().upper()
@@ -171,16 +317,16 @@ async def update_stock(stock_id: str, payload: StockUpdate):
         if payload.allocation_pct < 0 or payload.allocation_pct > 100:
             raise HTTPException(400, "allocation_pct must be between 0 and 100")
         update["allocation_pct"] = float(payload.allocation_pct)
-    if update:
-        await db.stocks.update_one({"id": stock_id}, {"$set": update})
-    doc = await db.stocks.find_one({"id": stock_id}, {"_id": 0})
+    doc = await update_stock_doc(stock_id, update)
+    if not doc:
+        raise HTTPException(404, "stock not found")
     return Stock(**doc)
 
 
 @api_router.delete("/stocks/{stock_id}")
 async def delete_stock(stock_id: str):
-    res = await db.stocks.delete_one({"id": stock_id})
-    if res.deleted_count == 0:
+    ok = await delete_stock_doc(stock_id)
+    if not ok:
         raise HTTPException(404, "stock not found")
     return {"ok": True, "deleted_id": stock_id}
 
@@ -195,8 +341,8 @@ async def update_allocations(payload: AllocationsUpdate):
         pct = float(pct)
         if pct < 0 or pct > 100:
             raise HTTPException(400, f"invalid allocation_pct for {sid}")
-        await db.stocks.update_one({"id": sid}, {"$set": {"allocation_pct": pct}})
-    rows = await db.stocks.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+        await update_stock_doc(sid, {"allocation_pct": pct})
+    rows = await get_all_stocks()
     return [Stock(**r) for r in rows]
 
 
@@ -205,7 +351,7 @@ async def update_allocations(payload: AllocationsUpdate):
 @api_router.get("/dashboard")
 async def get_dashboard():
     settings = await get_settings_doc()
-    stocks = await db.stocks.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    stocks = await get_all_stocks()
 
     today = datetime.now().date()
     days_elapsed_raw = business_days_elapsed(today)
@@ -226,11 +372,7 @@ async def get_dashboard():
         daily_budget = monthly_alloc / settings["trading_days"] if settings["trading_days"] else 0
         accrued = daily_budget * days_elapsed
 
-        # Sum entries for this stock this month
-        entries = await db.entries.find(
-            {"stock_id": s["id"], "date": {"$regex": f"^{mk}-"}},
-            {"_id": 0},
-        ).to_list(10000)
+        entries = await get_month_entries(s["id"], mk)
         spent = sum(e.get("cost", 0) for e in entries)
         units = sum(int(e.get("units", 0)) for e in entries)
 
@@ -284,7 +426,8 @@ async def get_dashboard():
 async def create_entry(payload: EntryCreate):
     if payload.price <= 0:
         raise HTTPException(400, "price must be > 0")
-    stock = await db.stocks.find_one({"id": payload.stock_id}, {"_id": 0})
+    stocks = await get_all_stocks()
+    stock = next((s for s in stocks if s["id"] == payload.stock_id), None)
     if not stock:
         raise HTTPException(404, "stock not found")
 
@@ -293,7 +436,6 @@ async def create_entry(payload: EntryCreate):
     entry_date = datetime.strptime(entry_date_str, "%Y-%m-%d").date()
     today = datetime.now().date()
 
-    # Compute remaining budget available for this stock as of entry_date
     days_elapsed = min(business_days_elapsed(entry_date if entry_date <= today else today), settings["trading_days"])
     pct = float(stock.get("allocation_pct", 0))
     monthly_alloc = settings["monthly_budget"] * pct / 100.0
@@ -301,10 +443,7 @@ async def create_entry(payload: EntryCreate):
     accrued = daily_budget * days_elapsed
 
     mk = month_key(entry_date)
-    existing = await db.entries.find(
-        {"stock_id": payload.stock_id, "date": {"$regex": f"^{mk}-"}},
-        {"_id": 0},
-    ).to_list(10000)
+    existing = await get_month_entries(payload.stock_id, mk)
     spent = sum(e.get("cost", 0) for e in existing)
     remaining = max(accrued - spent, 0.0)
 
@@ -328,23 +467,20 @@ async def create_entry(payload: EntryCreate):
         cost=cost,
     )
     doc = entry.model_dump()
-    await db.entries.insert_one(doc.copy())
+    await add_entry_doc(doc)
     return entry
 
 
 @api_router.get("/entries", response_model=List[Entry])
 async def list_entries(stock_id: Optional[str] = None, limit: int = 500):
-    query = {}
-    if stock_id:
-        query["stock_id"] = stock_id
-    rows = await db.entries.find(query, {"_id": 0}).sort("created_at", -1).to_list(limit)
+    rows = await get_all_entries(stock_id=stock_id, limit=limit)
     return [Entry(**r) for r in rows]
 
 
 @api_router.delete("/entries/{entry_id}")
 async def delete_entry(entry_id: str):
-    res = await db.entries.delete_one({"id": entry_id})
-    if res.deleted_count == 0:
+    ok = await delete_entry_doc(entry_id)
+    if not ok:
         raise HTTPException(404, "entry not found")
     return {"ok": True, "deleted_id": entry_id}
 
@@ -354,22 +490,30 @@ async def delete_entry(entry_id: str):
 @api_router.post("/reset/budget")
 async def reset_budget():
     defaults = Settings().model_dump()
-    to_save = {**defaults, "_key": SETTINGS_KEY}
-    await db.settings.update_one({"_key": SETTINGS_KEY}, {"$set": to_save}, upsert=True)
-    return {k: v for k, v in defaults.items()}
+    await save_settings_doc(defaults)
+    return defaults
 
 
 @api_router.post("/reset/allocations")
 async def reset_allocations():
-    await db.stocks.update_many({}, {"$set": {"allocation_pct": 0.0}})
-    rows = await db.stocks.find({}, {"_id": 0}).sort("created_at", 1).to_list(1000)
+    stocks = await get_all_stocks()
+    for s in stocks:
+        await update_stock_doc(s["id"], {"allocation_pct": 0.0})
+    rows = await get_all_stocks()
     return [Stock(**r) for r in rows]
 
 
 @api_router.post("/reset/logs")
 async def reset_logs():
-    res = await db.entries.delete_many({})
-    return {"ok": True, "deleted_count": res.deleted_count}
+    global use_memory_fallback
+    MEMORY_STORE["entries"].clear()
+    if not use_memory_fallback:
+        try:
+            res = await db.entries.delete_many({})
+            return {"ok": True, "deleted_count": res.deleted_count}
+        except Exception:
+            use_memory_fallback = True
+    return {"ok": True, "deleted_count": 0}
 
 
 @api_router.get("/")
