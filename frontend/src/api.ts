@@ -2,6 +2,20 @@ const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
 
 export const API = `${BASE}/api`;
 
+let authToken: string | null = null;
+
+export function setApiAuthToken(token: string | null) {
+  authToken = token;
+}
+
+function getHeaders(extra: Record<string, string> = {}) {
+  const headers: Record<string, string> = { ...extra };
+  if (authToken) {
+    headers["Authorization"] = `Bearer ${authToken}`;
+  }
+  return headers;
+}
+
 async function handle(res: Response) {
   if (!res.ok) {
     let msg = `HTTP ${res.status}`;
@@ -15,53 +29,121 @@ async function handle(res: Response) {
 }
 
 export const api = {
-  getSettings: () => fetch(`${API}/settings`).then(handle),
-  updateSettings: (body: { monthly_budget?: number; trading_days?: number }) =>
-    fetch(`${API}/settings`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
+  // Auth
+  register: (body: { email: string; password: string }) =>
+    fetch(`${API}/auth/register`, {
+      method: "POST",
+      headers: getHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     }).then(handle),
 
-  listStocks: () => fetch(`${API}/stocks`).then(handle),
+  login: (body: { email: string; password: string }) =>
+    fetch(`${API}/auth/login`, {
+      method: "POST",
+      headers: getHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    }).then(handle),
+
+  getMe: () =>
+    fetch(`${API}/auth/me`, {
+      headers: getHeaders(),
+    }).then(handle),
+
+  // Settings
+  getSettings: () =>
+    fetch(`${API}/settings`, {
+      headers: getHeaders(),
+    }).then(handle),
+
+  updateSettings: (body: { monthly_budget?: number; trading_days?: number }) =>
+    fetch(`${API}/settings`, {
+      method: "PUT",
+      headers: getHeaders({ "Content-Type": "application/json" }),
+      body: JSON.stringify(body),
+    }).then(handle),
+
+  // Stocks
+  listStocks: () =>
+    fetch(`${API}/stocks`, {
+      headers: getHeaders(),
+    }).then(handle),
+
   createStock: (body: { symbol: string; name: string; allocation_pct: number }) =>
     fetch(`${API}/stocks`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     }).then(handle),
+
   updateStock: (id: string, body: { symbol?: string; name?: string; allocation_pct?: number }) =>
     fetch(`${API}/stocks/${id}`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     }).then(handle),
+
   deleteStock: (id: string) =>
-    fetch(`${API}/stocks/${id}`, { method: "DELETE" }).then(handle),
+    fetch(`${API}/stocks/${id}`, {
+      method: "DELETE",
+      headers: getHeaders(),
+    }).then(handle),
 
   updateAllocations: (allocations: { id: string; allocation_pct: number }[]) =>
     fetch(`${API}/allocations`, {
       method: "PUT",
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ allocations }),
     }).then(handle),
 
-  getDashboard: () => fetch(`${API}/dashboard`).then(handle),
+  // Dashboard
+  getDashboard: () =>
+    fetch(`${API}/dashboard`, {
+      headers: getHeaders(),
+    }).then(handle),
 
+  // Entries
   createEntry: (body: { stock_id: string; price: number; units?: number; date?: string }) =>
     fetch(`${API}/entries`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: getHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify(body),
     }).then(handle),
-  listEntries: (stockId?: string) =>
-    fetch(`${API}/entries${stockId ? `?stock_id=${stockId}` : ""}`).then(handle),
-  deleteEntry: (id: string) =>
-    fetch(`${API}/entries/${id}`, { method: "DELETE" }).then(handle),
 
-  resetBudget: () => fetch(`${API}/reset/budget`, { method: "POST" }).then(handle),
-  resetAllocations: () => fetch(`${API}/reset/allocations`, { method: "POST" }).then(handle),
-  resetLogs: () => fetch(`${API}/reset/logs`, { method: "POST" }).then(handle),
+  listEntries: (stockId?: string) =>
+    fetch(`${API}/entries${stockId ? `?stock_id=${stockId}` : ""}`, {
+      headers: getHeaders(),
+    }).then(handle),
+
+  deleteEntry: (id: string) =>
+    fetch(`${API}/entries/${id}`, {
+      method: "DELETE",
+      headers: getHeaders(),
+    }).then(handle),
+
+  // Reset
+  resetBudget: () =>
+    fetch(`${API}/reset/budget`, {
+      method: "POST",
+      headers: getHeaders(),
+    }).then(handle),
+
+  resetAllocations: () =>
+    fetch(`${API}/reset/allocations`, {
+      method: "POST",
+      headers: getHeaders(),
+    }).then(handle),
+
+  resetLogs: () =>
+    fetch(`${API}/reset/logs`, {
+      method: "POST",
+      headers: getHeaders(),
+    }).then(handle),
+};
+
+export type User = {
+  id: string;
+  email: string;
+  created_at: string;
 };
 
 export type Stock = {

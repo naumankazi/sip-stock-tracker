@@ -18,10 +18,12 @@ import { Feather } from "@expo/vector-icons";
 import { useThemeColors, spacing, radius, font } from "@/src/theme";
 import { api, Settings, Stock } from "@/src/api";
 import { useToast } from "@/src/toast";
+import { useAuth } from "@/src/auth";
 
 export default function SettingsScreen() {
   const c = useThemeColors();
   const toast = useToast();
+  const { user, logout } = useAuth();
 
   const [settings, setSettings] = React.useState<Settings | null>(null);
   const [stocks, setStocks] = React.useState<Stock[]>([]);
@@ -164,6 +166,20 @@ export default function SettingsScreen() {
           <View style={styles.header}>
             <Text style={[styles.title, { color: c.onSurface }]} testID="settings-title">Settings</Text>
             <Text style={[styles.subtitle, { color: c.mutedText }]}>Configure your SIP strategy</Text>
+          </View>
+
+          {/* Account Card */}
+          <View style={[styles.card, { backgroundColor: c.surfaceSecondary, borderColor: c.border }]}>
+            <Text style={[styles.cardTitle, { color: c.onSurface }]}>Account</Text>
+            <Text style={[styles.hint, { color: c.mutedText }]}>Signed in as <Text style={{ fontWeight: "600", color: c.onSurface }}>{user?.email}</Text></Text>
+            <Pressable
+              onPress={logout}
+              style={[styles.ghostBtn, { borderColor: c.error + "40", marginTop: spacing.xs, flexDirection: "row", gap: spacing.xs }]}
+              testID="logout-btn"
+            >
+              <Feather name="log-out" size={16} color={c.error} />
+              <Text style={{ color: c.error, fontSize: font.base, fontWeight: "500" }}>Log Out</Text>
+            </Pressable>
           </View>
 
           {/* Budget group */}

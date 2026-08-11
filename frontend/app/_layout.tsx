@@ -9,6 +9,8 @@ import { useIconFonts } from "@/src/hooks/use-icon-fonts";
 import { ToastProvider } from "@/src/toast";
 
 
+import { AuthProvider } from "@/src/auth";
+
 // Disable logbox errors etc so that users can see the app
 // and agent works as expected.
 LogBox.ignoreAllLogs(true)
@@ -36,7 +38,9 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ToastProvider>
-          <Stack screenOptions={{ headerShown: false }} />
+          <AuthProvider>
+            <Stack screenOptions={{ headerShown: false }} />
+          </AuthProvider>
         </ToastProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
