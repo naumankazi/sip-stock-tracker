@@ -169,6 +169,11 @@ export default function DashboardScreen() {
               <View style={styles.heroDivider} />
               <HeroStat label="Available Today" value={formatINR(data?.totals.remaining_today || 0)} testID="hero-available" />
             </View>
+            <View style={[styles.heroStatsRow, { marginTop: spacing.xs, paddingTop: spacing.xs, borderTopWidth: 0 }]}>
+              <HeroStat label="Units Bought" value={`${data?.totals.units_bought ?? data?.totals.units ?? 0} units`} />
+              <View style={styles.heroDivider} />
+              <HeroStat label="Can Buy Today" value={`${data?.totals.can_buy ?? 0} units`} />
+            </View>
           </View>
         </View>
 
@@ -379,18 +384,23 @@ function StockCard({ stock, onPress }: { stock: DashboardStock; onPress: () => v
         </View>
       </View>
 
-      <View style={styles.cardStats}>
-        <CardStat label="Available" value={formatINR(stock.remaining_today)} accent={c.brandPrimary} />
-        <CardStat label="Units Bought" value={`${unitsBought} units`} />
-        <CardStat
-          label="Can Buy"
-          value={
-            stock.latest_price > 0
-              ? `${canBuy} units`
-              : "Tap Buy"
-          }
-          accent={canBuy > 0 ? c.brandPrimary : c.mutedText}
-        />
+      <View style={styles.cardStatsGrid}>
+        <View style={styles.statRow}>
+          <CardStat label="Available" value={formatINR(stock.remaining_today)} accent={c.brandPrimary} />
+          <CardStat label="Daily Budget" value={formatINR(stock.daily_budget)} />
+        </View>
+        <View style={[styles.statRow, { marginTop: spacing.sm }]}>
+          <CardStat label="Units Bought" value={`${unitsBought} units`} />
+          <CardStat
+            label="Can Buy"
+            value={
+              stock.latest_price > 0
+                ? `${canBuy} units`
+                : "Tap Buy"
+            }
+            accent={canBuy > 0 ? c.brandPrimary : c.mutedText}
+          />
+        </View>
       </View>
 
       <View style={[styles.progressBar, { backgroundColor: c.surfaceTertiary }]}>
@@ -497,6 +507,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   buyPillText: { color: "#fff", fontSize: font.sm, fontWeight: "500" },
+  cardStatsGrid: { gap: spacing.xs },
+  statRow: { flexDirection: "row", gap: spacing.md },
   cardStats: { flexDirection: "row", gap: spacing.md },
   statLabel: { fontSize: 11, textTransform: "uppercase", letterSpacing: 0.5 },
   statValue: { fontSize: font.lg, fontWeight: "500", marginTop: 2 },
