@@ -352,6 +352,9 @@ function HeroStat({ label, value, testID }: { label: string; value: string; test
 function StockCard({ stock, onPress }: { stock: DashboardStock; onPress: () => void }) {
   const c = useThemeColors();
   const pct = stock.accrued > 0 ? Math.min((stock.spent / stock.accrued) * 100, 100) : 0;
+  const unitsBought = stock.units_bought ?? stock.units ?? 0;
+  const canBuy = stock.can_buy ?? 0;
+
   return (
     <Pressable
       style={[styles.card, { backgroundColor: c.surfaceSecondary, borderColor: c.border }]}
@@ -378,8 +381,16 @@ function StockCard({ stock, onPress }: { stock: DashboardStock; onPress: () => v
 
       <View style={styles.cardStats}>
         <CardStat label="Available" value={formatINR(stock.remaining_today)} accent={c.brandPrimary} />
-        <CardStat label="Daily" value={formatINR(stock.daily_budget)} />
-        <CardStat label="Units" value={String(stock.units)} />
+        <CardStat label="Units Bought" value={`${unitsBought} units`} />
+        <CardStat
+          label="Can Buy"
+          value={
+            stock.latest_price > 0
+              ? `${canBuy} units`
+              : "Tap Buy"
+          }
+          accent={canBuy > 0 ? c.brandPrimary : c.mutedText}
+        />
       </View>
 
       <View style={[styles.progressBar, { backgroundColor: c.surfaceTertiary }]}>
@@ -388,6 +399,7 @@ function StockCard({ stock, onPress }: { stock: DashboardStock; onPress: () => v
       <View style={styles.cardFooter}>
         <Text style={[styles.footerText, { color: c.mutedText }]}>
           Spent {formatINR(stock.spent)} / {formatINR(stock.accrued)}
+          {stock.latest_price > 0 ? ` · Last Price: ${formatINR(stock.latest_price)}` : ""}
         </Text>
       </View>
     </Pressable>

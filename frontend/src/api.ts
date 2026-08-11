@@ -176,6 +176,9 @@ export type DashboardStock = {
   accrued: number;
   spent: number;
   units: number;
+  units_bought: number;
+  latest_price: number;
+  can_buy: number;
   today_spent: number;
   remaining_today: number;
 };
@@ -195,6 +198,8 @@ export type Dashboard = {
     spent: number;
     remaining_today: number;
     units: number;
+    units_bought: number;
+    can_buy: number;
   };
   stocks: DashboardStock[];
 };

@@ -570,7 +570,9 @@ async def get_dashboard(user_id: str = Depends(get_current_user_id)):
     total_daily_budget = 0.0
     total_accrued = 0.0
     total_spent = 0.0
-    total_units = 0
+    total_units_bought = 0
+    total_can_buy = 0
+    sum_remaining_today = 0.0
 
     for s in stocks:
         pct = float(s.get("allocation_pct", 0))
@@ -580,13 +582,24 @@ async def get_dashboard(user_id: str = Depends(get_current_user_id)):
 
         entries = await get_user_month_entries(user_id, s["id"], mk)
         spent = sum(e.get("cost", 0) for e in entries)
-        units = sum(int(e.get("units", 0)) for e in entries)
+        units_bought = sum(int(e.get("units", 0)) for e in entries)
 
         today_str = today.strftime("%Y-%m-%d")
         today_entries = [e for e in entries if e.get("date") == today_str]
         today_spent = sum(e.get("cost", 0) for e in today_entries)
 
-        remaining = max(accrued - spent, 0.0)
+        # Isolated remaining budget for this stock (never negative, never hampers other stocks)
+        remaining_today = max(accrued - spent, 0.0)
+
+        # Latest price & Can Buy calculation
+        latest_price = 0.0
+        if entries:
+            sorted_entries = sorted(entries, key=lambda x: x.get("created_at", ""), reverse=True)
+            latest_price = float(sorted_entries[0].get("price", 0.0))
+
+        can_buy = 0
+        if latest_price > 0 and remaining_today > 0:
+            can_buy = int(remaining_today // latest_price)
 
         per_stock.append({
             "id": s["id"],
@@ -597,14 +610,20 @@ async def get_dashboard(user_id: str = Depends(get_current_user_id)):
             "daily_budget": round(daily_budget, 2),
             "accrued": round(accrued, 2),
             "spent": round(spent, 2),
-            "units": units,
+            "units_bought": units_bought,
+            "units": units_bought,
+            "latest_price": round(latest_price, 2),
+            "can_buy": can_buy,
             "today_spent": round(today_spent, 2),
-            "remaining_today": round(remaining, 2),
+            "remaining_today": round(remaining_today, 2),
         })
+
         total_daily_budget += daily_budget
         total_accrued += accrued
         total_spent += spent
-        total_units += units
+        total_units_bought += units_bought
+        total_can_buy += can_buy
+        sum_remaining_today += remaining_today
 
     return {
         "currency": settings.get("currency", "INR"),
@@ -619,8 +638,10 @@ async def get_dashboard(user_id: str = Depends(get_current_user_id)):
             "daily_budget": round(total_daily_budget, 2),
             "accrued": round(total_accrued, 2),
             "spent": round(total_spent, 2),
-            "remaining_today": round(max(total_accrued - total_spent, 0.0), 2),
-            "units": total_units,
+            "remaining_today": round(sum_remaining_today, 2),
+            "units_bought": total_units_bought,
+            "units": total_units_bought,
+            "can_buy": total_can_buy,
         },
         "stocks": per_stock,
     }
