@@ -72,14 +72,20 @@ export default function SettingsScreen() {
     }
     setSaving(true);
     try {
-      await api.updateSettings({ monthly_budget: budget, trading_days: days });
+      const updatedSettings = await api.updateSettings({ monthly_budget: budget, trading_days: days });
+      setSettings(updatedSettings);
+      setBudgetInput(String(updatedSettings.monthly_budget));
+      setTradingDaysInput(String(updatedSettings.trading_days));
       if (stocks.length > 0) {
-        await api.updateAllocations(
+        const updatedStocks = await api.updateAllocations(
           stocks.map((s) => ({ id: s.id, allocation_pct: parseFloat(allocs[s.id] || "0") }))
         );
+        setStocks(updatedStocks);
+        const map: Record<string, string> = {};
+        updatedStocks.forEach((x: Stock) => (map[x.id] = String(x.allocation_pct)));
+        setAllocs(map);
       }
       toast.show("Settings saved", "success");
-      load();
     } catch (e: any) {
       toast.show(e.message, "error");
     } finally {
@@ -90,7 +96,13 @@ export default function SettingsScreen() {
   const addStock = async () => {
     if (!addSymbol.trim() || !addName.trim()) return toast.show("Symbol and name required", "error");
     const pct = parseFloat(addPct) || 0;
+    const budget = parseFloat(budgetInput);
+    const days = parseInt(tradingDaysInput, 10);
     try {
+      if (budget && budget > 0 && days && days > 0) {
+        const s = await api.updateSettings({ monthly_budget: budget, trading_days: days });
+        setSettings(s);
+      }
       const newStock = await api.createStock({ symbol: addSymbol, name: addName, allocation_pct: pct });
       toast.show("Stock added", "success");
       setAddOpen(false);
@@ -110,7 +122,13 @@ export default function SettingsScreen() {
       danger: true,
     });
     if (!ok) return;
+    const budget = parseFloat(budgetInput);
+    const days = parseInt(tradingDaysInput, 10);
     try {
+      if (budget && budget > 0 && days && days > 0) {
+        const updatedS = await api.updateSettings({ monthly_budget: budget, trading_days: days });
+        setSettings(updatedS);
+      }
       await api.deleteStock(s.id);
       toast.show("Stock removed", "success");
       setStocks((prev) => prev.filter((x) => x.id !== s.id));
