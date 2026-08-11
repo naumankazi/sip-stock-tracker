@@ -1,123 +1,118 @@
-# SIP Stock Tracker
+# 📈 SIP Stock Tracker
 
-This project has:
-- Backend: FastAPI service in backend
-- Frontend: Expo React Native app in frontend
+A modern, mobile-first Daily SIP Stock Tracking application built with **React Native (Expo Router)** and **FastAPI (Python)**. It helps you manage daily rupee-cost-averaging investment plans, isolate budget allocations per stock, track unit purchases, and maintain portfolio discipline.
 
-Use this guide to run everything locally and test on a real phone with Expo Go.
+---
 
-## Prerequisites
+## ✨ Features
 
-- Node.js 20+ and npm
-- Python 3.11+ (validated here with Python 3.13)
-- Expo Go app on your phone (Android or iOS)
-- Phone and development machine on the same Wi-Fi network
+- **Multi-User Authentication**: Register and log in securely with salted PBKDF2-SHA256 password hashing. Every user gets an isolated, 100% private portfolio workspace.
+- **Dynamic Daily SIP Allocation**: Calculates exact daily target budgets based on custom monthly budget and business trading days in the month (e.g. 22 trading days).
+- **Dashboard Metrics**:
+  - **Hero Header**: Total monthly budget, total spent, and available funds today.
+  - **Per-Stock Cards**: Displays **Units Bought** this month, **Can Buy** (estimated units based on available budget and last price), available daily funds, and spent vs. accrued progress bar.
+- **Strict Budget Isolation**: Over-spending on Stock A stays strictly isolated to Stock A and **never hampers or reduces** Stock B or Stock C's daily budget.
+- **Auto-Saving Settings**: Custom monthly budget and trading days in Settings are automatically saved to persistent storage (`memory_store.json` + MongoDB) on every save or stock operation.
+- **Buy History Logs**: Log buy entries with price and units, view historical logs per stock, and delete entries anytime.
 
-## 1) Start the Backend API
+---
 
-Open Terminal 1 from the repository root and run:
+## 🏗️ Project Architecture
+
+```text
+sip-stock-tracker/
+├── backend/
+│   ├── server.py              # FastAPI application with Auth, Settings, Stocks, Entries & Dashboard endpoints
+│   ├── requirements.txt       # Python dependencies (uvicorn, fastapi, pydantic, motor, passlib)
+│   ├── Procfile               # Production web process definition for Render / Railway
+│   └── memory_store.json      # Persistent local disk backup store (<10ms instant startup)
+└── frontend/
+    ├── app/
+    │   ├── _layout.tsx        # Root layout with Theme, Toast, and AuthProvider wrappers
+    │   └── (tabs)/
+    │       ├── index.tsx      # Main Dashboard with stock cards and buy modal
+    │       ├── settings.tsx   # Account info, budget configuration, stock allocations & reset tools
+    │       └── history.tsx    # Purchase logs history & deletion
+    ├── src/
+    │   ├── api.ts             # API client with automatic Bearer token header
+    │   └── auth.tsx           # Authentication Context & Sign Up / Log In screen
+    ├── app.json               # Expo configuration (slug: "sip-stock-tracker")
+    └── package.json           # Node.js dependencies
+```
+
+---
+
+## 🚀 Quick Start Guide
+
+### 1) Start the Backend API
+
+Open Terminal 1:
 
 ```powershell
 cd backend
-python -m uvicorn server:app --host 0.0.0.0 --port 8000
+python -m uvicorn server:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Expected output includes:
-- Uvicorn running on http://0.0.0.0:8000
+- API Base URL: `http://localhost:8000/api`
+- Health check: `http://localhost:8000/api/`
 
-Quick health check in a browser:
-- http://localhost:8000/api/
+---
 
-## 2) Configure Frontend API URL for Expo Go
+### 2) Configure Frontend Environment
 
-Expo Go on a physical phone cannot use localhost from your computer.
-Set your computer LAN IP in frontend/.env.
-
-1. Copy the example env file if needed:
+Open Terminal 2:
 
 ```powershell
 cd frontend
 copy .env.example .env
 ```
 
-2. Edit frontend/.env and set:
+Edit `frontend/.env` and set your local computer LAN IP address (or live Render URL):
 
 ```env
-EXPO_PUBLIC_BACKEND_URL=http://YOUR_COMPUTER_LAN_IP:8000
+EXPO_PUBLIC_BACKEND_URL=http://192.168.137.182:8000
 ```
 
-Example:
+> **Tip (Windows)**: Find your Wi-Fi IPv4 address using `ipconfig`.
 
-```env
-EXPO_PUBLIC_BACKEND_URL=http://192.168.1.100:8000
-```
+---
 
-Tip (Windows): find your IP with:
+### 3) Install Frontend & Run Expo Go
+
+In Terminal 2:
 
 ```powershell
-ipconfig
-```
-
-Use the IPv4 address of your active Wi-Fi adapter.
-
-## 3) Install Frontend Dependencies
-
-Open Terminal 2:
-
-```powershell
-cd frontend
 npm install
+npx expo start --clear
 ```
 
-## 4) Start Expo Dev Server
+---
 
-From frontend:
+### 4) Open on Mobile Phone
 
-```powershell
-npx expo start --lan --clear
-```
+1. Install **Expo Go** from Google Play Store or iOS App Store.
+2. Scan the QR code displayed in terminal using:
+   - **Android**: Scan QR code inside Expo Go app.
+   - **iOS**: Scan QR code with native Camera app.
+3. Sign up with your email and password to start tracking!
 
-If LAN mode does not connect on your network, try:
+---
 
-```powershell
-npx expo start --tunnel --clear
-```
+## ☁️ Deploying to Production & Expo Cloud
 
-## 5) Open in Expo Go
+- **Backend Deployment**: Hosted on [Render](https://render.com) connected to MongoDB Atlas.
+- **Expo Cloud Updates**: Publish over-the-air updates to Expo Cloud using:
+  ```powershell
+  npx eas-cli project:init
+  npx eas-cli update --branch preview --message "Latest updates"
+  ```
 
-1. Launch Expo Go on your phone.
-2. Scan the QR code shown in the Expo terminal.
-3. The app should load and call your local backend using EXPO_PUBLIC_BACKEND_URL.
+For detailed step-by-step production deployment instructions, custom domains, and native app store builds, view [`DEPLOYMENT_GUIDE.md`](../DEPLOYMENT_GUIDE.md).
 
-## 6) Verify App-to-Backend Connection
+---
 
-- In the app, perform actions that trigger API calls (stocks, entries, settings).
-- Confirm backend terminal logs requests.
-- If needed, verify URL manually in mobile browser:
-	- http://YOUR_COMPUTER_LAN_IP:8000/api/
+## 🛠️ Tech Stack
 
-## Troubleshooting
-
-- App cannot reach backend:
-	- Make sure frontend/.env uses LAN IP, not localhost.
-	- Confirm backend is running on port 8000.
-	- Ensure phone and computer are on the same network.
-	- Check Windows Firewall rules for Python/port 8000.
-
-- Expo starts but phone cannot connect:
-	- Retry with tunnel mode: npx expo start --tunnel --clear.
-	- Restart Expo with cache clear (already included via --clear).
-
-- Metro or dependency issues:
-	- Delete frontend/node_modules and reinstall.
-	- Re-run npm install in frontend.
-
-## Tested Local Commands
-
-The following commands were validated in this workspace:
-
-- Backend:
-	- python -m uvicorn server:app --host 0.0.0.0 --port 8000
-- Frontend:
-	- npm install
-	- npx expo start --lan --clear
+- **Frontend**: React Native, Expo SDK 52, Expo Router, TypeScript, Vector Icons, Linear Gradient.
+- **Backend**: Python 3.11+, FastAPI, Uvicorn, Pydantic, Motor (MongoDB async driver), Passlib (PBKDF2 password hashing).
+- **Deployment**: Render, MongoDB Atlas, Expo Application Services (EAS).
