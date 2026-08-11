@@ -1,4 +1,4 @@
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
+const BASE = process.env.EXPO_PUBLIC_BACKEND_URL || "https://sip-stock-tracker.onrender.com";
 
 export const API = `${BASE}/api`;
 
