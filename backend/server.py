@@ -4,6 +4,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import ServerSelectionTimeoutError, PyMongoError
 import os
+import json
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field
@@ -80,32 +81,48 @@ class AllocationsUpdate(BaseModel):
     allocations: List[dict]  # [{ "id": stock_id, "allocation_pct": 25.0 }]
 
 
-# ---------------------- Hybrid DB Abstraction ----------------------
+# ---------------------- Hybrid DB Abstraction with Persistence ----------------------
 
 SETTINGS_KEY = "singleton"
+STORE_FILE = ROOT_DIR / "memory_store.json"
 
-# In-memory storage fallback if MongoDB is offline
-MEMORY_STORE = {
-    "settings": Settings().model_dump(),
-    "stocks": [
-        {
-            "id": "sample-1",
-            "symbol": "RELIANCE",
-            "name": "Reliance Industries",
-            "allocation_pct": 40.0,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        },
-        {
-            "id": "sample-2",
-            "symbol": "TCS",
-            "name": "Tata Consultancy Services",
-            "allocation_pct": 60.0,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-    ],
-    "entries": []
-}
+def load_memory_store() -> dict:
+    if STORE_FILE.exists():
+        try:
+            with open(STORE_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data
+        except Exception as e:
+            logging.error(f"Error loading memory_store.json: {e}")
+    return {
+        "settings": Settings().model_dump(),
+        "stocks": [
+            {
+                "id": "sample-1",
+                "symbol": "RELIANCE",
+                "name": "Reliance Industries",
+                "allocation_pct": 40.0,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": "sample-2",
+                "symbol": "TCS",
+                "name": "Tata Consultancy Services",
+                "allocation_pct": 60.0,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+        ],
+        "entries": []
+    }
 
+def save_memory_store():
+    try:
+        with open(STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(MEMORY_STORE, f, indent=2)
+    except Exception as e:
+        logging.error(f"Error saving memory_store.json: {e}")
+
+MEMORY_STORE = load_memory_store()
 use_memory_fallback = False
 
 async def get_settings_doc() -> dict:
@@ -114,7 +131,7 @@ async def get_settings_doc() -> dict:
         try:
             doc = await db.settings.find_one({"_key": SETTINGS_KEY}, {"_id": 0})
             if not doc:
-                s = Settings().model_dump()
+                s = MEMORY_STORE["settings"].copy()
                 s["_key"] = SETTINGS_KEY
                 await db.settings.insert_one(s.copy())
                 doc = {k: v for k, v in s.items() if k != "_key"}
@@ -122,7 +139,7 @@ async def get_settings_doc() -> dict:
                 doc = {k: v for k, v in doc.items() if k != "_key"}
             return doc
         except (ServerSelectionTimeoutError, PyMongoError, Exception) as e:
-            logging.warning(f"MongoDB not available, switching to in-memory store: {e}")
+            logging.warning(f"MongoDB not available, switching to persistent in-memory store: {e}")
             use_memory_fallback = True
     return MEMORY_STORE["settings"].copy()
 
@@ -130,6 +147,7 @@ async def get_settings_doc() -> dict:
 async def save_settings_doc(data: dict):
     global use_memory_fallback
     MEMORY_STORE["settings"] = data.copy()
+    save_memory_store()
     if not use_memory_fallback:
         try:
             to_save = {**data, "_key": SETTINGS_KEY}
@@ -152,6 +170,7 @@ async def get_all_stocks() -> List[dict]:
 async def add_stock_doc(stock_doc: dict):
     global use_memory_fallback
     MEMORY_STORE["stocks"].append(stock_doc.copy())
+    save_memory_store()
     if not use_memory_fallback:
         try:
             await db.stocks.insert_one(stock_doc.copy())
@@ -167,6 +186,7 @@ async def update_stock_doc(stock_id: str, update_fields: dict) -> Optional[dict]
             s.update(update_fields)
             updated = s.copy()
             break
+    save_memory_store()
     if not use_memory_fallback:
         try:
             await db.stocks.update_one({"id": stock_id}, {"$set": update_fields})
@@ -183,6 +203,7 @@ async def delete_stock_doc(stock_id: str) -> bool:
     initial_len = len(MEMORY_STORE["stocks"])
     MEMORY_STORE["stocks"] = [s for s in MEMORY_STORE["stocks"] if s["id"] != stock_id]
     deleted = len(MEMORY_STORE["stocks"]) < initial_len
+    save_memory_store()
     if not use_memory_fallback:
         try:
             res = await db.stocks.delete_one({"id": stock_id})
@@ -209,6 +230,7 @@ async def get_month_entries(stock_id: str, month_prefix: str) -> List[dict]:
 async def add_entry_doc(entry_doc: dict):
     global use_memory_fallback
     MEMORY_STORE["entries"].append(entry_doc.copy())
+    save_memory_store()
     if not use_memory_fallback:
         try:
             await db.entries.insert_one(entry_doc.copy())
@@ -236,6 +258,7 @@ async def delete_entry_doc(entry_id: str) -> bool:
     initial_len = len(MEMORY_STORE["entries"])
     MEMORY_STORE["entries"] = [e for e in MEMORY_STORE["entries"] if e["id"] != entry_id]
     deleted = len(MEMORY_STORE["entries"]) < initial_len
+    save_memory_store()
     if not use_memory_fallback:
         try:
             res = await db.entries.delete_one({"id": entry_id})
@@ -507,6 +530,7 @@ async def reset_allocations():
 async def reset_logs():
     global use_memory_fallback
     MEMORY_STORE["entries"].clear()
+    save_memory_store()
     if not use_memory_fallback:
         try:
             res = await db.entries.delete_many({})

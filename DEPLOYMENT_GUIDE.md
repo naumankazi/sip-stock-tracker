@@ -67,7 +67,7 @@ Production deployment files (`Procfile` and cleaned `requirements.txt`) have als
    - `MONGO_URL` = `mongodb+srv://dbuser:<password>@cluster0.xxxxxx.mongodb.net/`
    - `DB_NAME` = `sip_stock_tracker`
 6. Click **Create Web Service**. Render will deploy your service and generate a free HTTPS URL:
-   `https://sip-stock-tracker-api.onrender.com`
+   `https://sip-stock-tracker.onrender.com`
 
 ---
 
@@ -78,7 +78,7 @@ Production deployment files (`Procfile` and cleaned `requirements.txt`) have als
 3. In your DNS Provider (Cloudflare, GoDaddy, Namecheap, etc.), add a **CNAME** record:
    - **Type**: `CNAME`
    - **Host / Name**: `api`
-   - **Target / Value**: `sip-stock-tracker-api.onrender.com`
+   - **Target / Value**: `sip-stock-tracker.onrender.com`
 4. Render will automatically issue a free SSL/TLS certificate for `https://api.yourdomain.com`.
 
 ---

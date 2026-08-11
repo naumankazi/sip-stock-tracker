@@ -89,11 +89,12 @@ export default function SettingsScreen() {
     if (!addSymbol.trim() || !addName.trim()) return toast.show("Symbol and name required", "error");
     const pct = parseFloat(addPct) || 0;
     try {
-      await api.createStock({ symbol: addSymbol, name: addName, allocation_pct: pct });
+      const newStock = await api.createStock({ symbol: addSymbol, name: addName, allocation_pct: pct });
       toast.show("Stock added", "success");
       setAddOpen(false);
       setAddSymbol(""); setAddName(""); setAddPct("");
-      load();
+      setStocks((prev) => [...prev, newStock]);
+      setAllocs((prev) => ({ ...prev, [newStock.id]: String(newStock.allocation_pct) }));
     } catch (e: any) {
       toast.show(e.message, "error");
     }
@@ -110,7 +111,12 @@ export default function SettingsScreen() {
     try {
       await api.deleteStock(s.id);
       toast.show("Stock removed", "success");
-      load();
+      setStocks((prev) => prev.filter((x) => x.id !== s.id));
+      setAllocs((prev) => {
+        const next = { ...prev };
+        delete next[s.id];
+        return next;
+      });
     } catch (e: any) {
       toast.show(e.message, "error");
     }
