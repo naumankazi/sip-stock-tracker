@@ -154,10 +154,10 @@ export default function DashboardScreen() {
 
         {/* Hero card */}
         <View style={[styles.hero, { borderColor: c.border }]} testID="hero-card">
-          <Image source={{ uri: HERO_LIGHT }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+          <Image source={{ uri: HERO_LIGHT }} style={StyleSheet.absoluteFill} contentFit="cover" />
           <LinearGradient
             colors={["rgba(26,26,26,0.35)", "rgba(26,26,26,0.85)"]}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           <View style={styles.heroContent}>
             <Text style={styles.heroLabel}>Monthly Budget</Text>
