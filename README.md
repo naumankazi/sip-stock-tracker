@@ -70,7 +70,7 @@ copy .env.example .env
 Edit `frontend/.env` and set your local computer LAN IP address (or live Render URL):
 
 ```env
-EXPO_PUBLIC_BACKEND_URL=http://192.168.137.182:8000
+EXPO_PUBLIC_BACKEND_URL=http://192.168.137.182:8000 //https://sip-stock-tracker.onrender.com
 ```
 
 > **Tip (Windows)**: Find your Wi-Fi IPv4 address using `ipconfig`.

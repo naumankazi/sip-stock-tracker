@@ -89,7 +89,7 @@ In `sip-stock-tracker/frontend`, create or edit `.env`:
 
 ```env
 # Set to your live custom domain or Render URL
-EXPO_PUBLIC_BACKEND_URL=https://api.yourdomain.com
+EXPO_PUBLIC_BACKEND_URL=https://sip-stock-tracker.onrender.com
 ```
 
 ---
