@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    "expo-image",
+    "expo-router",
+    "expo-secure-store",
+    "expo-splash-screen",
+    "expo-web-browser"
+  ]
+}
