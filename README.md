@@ -42,7 +42,35 @@ sip-stock-tracker/
 
 ---
 
-## 🚀 Quick Start Guide
+## Install on Android (Standalone APK)
+
+Build an APK that installs directly on Android without Expo Go or a running
+development server. Run these commands from the repository root:
+
+```powershell
+cd frontend
+npx eas-cli login
+npm run build:apk
+```
+
+The existing `preview` build profile produces a signed `.apk` and connects to
+`https://sip-stock-tracker.onrender.com`. An Expo account with access to this
+project is required. If EAS asks to generate an Android keystore on the first
+build, select **Yes** and keep using that keystore for subsequent builds.
+
+When the build finishes, open the APK download link from EAS on your Android
+phone, download it, and allow **Install unknown apps** for your browser when
+Android prompts. Open the downloaded APK and tap **Install**. Launch
+**SIP Stock Tracker** from your app drawer; internet access and a working hosted
+backend are still required. No Google Play developer account is needed.
+
+`eas update` publishes JavaScript updates for compatible installed builds; it
+does not create an APK. Use `npm run build:apk` when native dependencies or
+native configuration change.
+
+---
+
+## 🚀 Quick Start Guide (Development with Expo Go)
 
 ### 1) Start the Backend API
 
@@ -102,6 +130,7 @@ npx expo start --clear
 
 - **Backend Deployment**: Hosted on [Render](https://render.com) connected to MongoDB Atlas.
 - **Expo Cloud Updates**: Publish over-the-air updates to Expo Cloud using:
+
   ```powershell
   npx eas-cli project:init
   npx eas-cli update --branch preview --message "Latest updates"
